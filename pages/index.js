@@ -31,9 +31,7 @@ export default function Home() {
       const res = await fetch(url);
       const data = await res.json();
       setArticles(data.articles || []);
-    } catch (e) {
-      setArticles([]);
-    }
+    } catch { setArticles([]); }
     setLoading(false);
   }
 
@@ -45,10 +43,7 @@ export default function Home() {
   function openArticle(a) {
     setCurrentArticle(a);
     setQaMessages([{ role: 'ai', text: 'Ask me anything about this story — background, context, implications, or what to watch next.' }]);
-  }
-
-  function closeArticle() {
-    setCurrentArticle(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   async function sendQA(q) {
@@ -135,45 +130,57 @@ export default function Home() {
         .section-rule::after { content:''; flex:1; height:1px; background:var(--rule); }
         .next-update { font-family:var(--mono); font-size:10px; color:var(--ink-faint); letter-spacing:0.06em; margin-bottom:24px; }
         .next-update span { color:var(--accent); }
+
+        /* ARTICLE IMAGES */
+        .article-img { width:100%; aspect-ratio:16/9; object-fit:cover; display:block; background:#e8e4dc; }
+        .hero-img { width:100%; aspect-ratio:16/9; object-fit:cover; display:block; margin-bottom:16px; background:#e8e4dc; }
+        .sidebar-img { width:100%; aspect-ratio:16/9; object-fit:cover; display:block; margin-bottom:8px; background:#e8e4dc; }
+        .article-hero-img { width:100%; max-height:420px; object-fit:cover; display:block; margin-bottom:28px; background:#e8e4dc; }
+
         .beat-tag { display:inline-block; background:#1a1814; color:#f2efe8; font-family:var(--mono); font-size:9px; letter-spacing:0.12em; text-transform:uppercase; padding:3px 8px; border-radius:2px; margin-bottom:10px; }
         .beat-tag.ai { background:#1a1060; }
         .beat-tag.tech { background:#0a2a0a; }
         .beat-tag.world { background:#2a0a0a; }
         .beat-tag.science { background:#0a1a2a; }
         .beat-tag.business { background:#1a1500; }
-        .hero-grid { display:grid; grid-template-columns:1fr 340px; gap:32px; margin-bottom:32px; }
+
+        .hero-grid { display:grid; grid-template-columns:1fr 300px; gap:32px; margin-bottom:32px; }
         @media(max-width:768px){ .hero-grid{grid-template-columns:1fr} }
         .hero-article { border-right:1px solid var(--rule); padding-right:32px; }
         @media(max-width:768px){ .hero-article{border-right:none;padding-right:0;border-bottom:1px solid var(--rule);padding-bottom:24px} }
-        .hero-headline { font-family:var(--serif); font-size:clamp(24px,3vw,36px); font-weight:700; line-height:1.18; margin-bottom:12px; cursor:pointer; transition:color 0.15s; }
+        .hero-headline { font-family:var(--serif); font-size:clamp(22px,3vw,32px); font-weight:700; line-height:1.18; margin-bottom:10px; cursor:pointer; transition:color 0.15s; }
         .hero-headline:hover { color:var(--accent); }
-        .hero-deck { font-size:15px; color:var(--ink-muted); line-height:1.65; margin-bottom:14px; font-weight:300; }
+        .hero-deck { font-size:14px; color:var(--ink-muted); line-height:1.65; margin-bottom:12px; font-weight:300; }
         .article-meta { display:flex; align-items:center; gap:10px; font-family:var(--mono); font-size:10px; letter-spacing:0.06em; color:var(--ink-faint); text-transform:uppercase; }
         .dot { color:var(--rule); }
-        .sidebar-item { padding:14px 0; border-bottom:1px solid var(--rule); cursor:pointer; }
+
+        .sidebar-item { padding:12px 0; border-bottom:1px solid var(--rule); cursor:pointer; }
         .sidebar-item:first-child { padding-top:0; }
         .sidebar-item:last-child { border-bottom:none; }
-        .sidebar-headline { font-family:var(--serif); font-size:16px; font-weight:600; line-height:1.3; margin:5px 0; transition:color 0.15s; }
+        .sidebar-headline { font-family:var(--serif); font-size:14px; font-weight:600; line-height:1.3; margin:4px 0; transition:color 0.15s; }
         .sidebar-item:hover .sidebar-headline { color:var(--accent); }
-        .sidebar-deck { font-size:12px; color:var(--ink-muted); line-height:1.5; }
+        .sidebar-deck { font-size:11px; color:var(--ink-muted); line-height:1.4; }
+
         .secondary-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:24px; border-top:1px solid var(--rule); padding-top:24px; }
         @media(max-width:900px){ .secondary-grid{grid-template-columns:1fr 1fr} }
         @media(max-width:600px){ .secondary-grid{grid-template-columns:1fr} }
         .article-card { cursor:pointer; padding-bottom:20px; border-bottom:1px solid var(--rule); }
         .article-card:hover .card-headline { color:var(--accent); }
-        .card-headline { font-family:var(--serif); font-size:17px; font-weight:600; line-height:1.3; margin:7px 0; transition:color 0.15s; }
+        .card-headline { font-family:var(--serif); font-size:16px; font-weight:600; line-height:1.3; margin:7px 0; transition:color 0.15s; }
         .card-deck { font-size:12px; color:var(--ink-muted); line-height:1.5; }
+
         .back-btn { display:flex; align-items:center; gap:6px; background:none; border:none; font-family:var(--mono); font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:var(--ink-muted); cursor:pointer; padding:24px 0 20px; transition:color 0.15s; }
         .back-btn:hover { color:var(--accent); }
-        .article-full { display:grid; grid-template-columns:1fr 320px; gap:48px; align-items:start; }
+        .article-full { display:grid; grid-template-columns:1fr 300px; gap:48px; align-items:start; }
         @media(max-width:768px){ .article-full{grid-template-columns:1fr} }
         .article-kicker { font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
         .article-title { font-family:var(--serif); font-size:clamp(26px,4vw,42px); font-weight:700; line-height:1.15; margin-bottom:14px; }
         .article-standfirst { font-family:var(--serif); font-style:italic; font-size:17px; color:var(--ink-muted); line-height:1.6; margin-bottom:18px; padding-bottom:18px; border-bottom:2px solid var(--rule); }
-        .article-byline { font-family:var(--mono); font-size:10px; letter-spacing:0.08em; text-transform:uppercase; color:var(--ink-faint); margin-bottom:26px; display:flex; gap:16px; flex-wrap:wrap; }
+        .article-byline { font-family:var(--mono); font-size:10px; letter-spacing:0.08em; text-transform:uppercase; color:var(--ink-faint); margin-bottom:20px; display:flex; gap:16px; flex-wrap:wrap; }
         .article-content { font-size:17px; line-height:1.78; }
         .article-content p { margin-bottom:20px; }
         .article-content p:first-child::first-letter { font-family:var(--serif); font-size:4.2em; font-weight:700; float:left; line-height:0.75; padding-right:8px; padding-top:6px; color:var(--accent); }
+
         .qa-panel { position:sticky; top:16px; background:var(--paper-warm); border:1px solid var(--rule); border-radius:4px; overflow:hidden; }
         .qa-header { background:var(--ink); color:var(--paper); padding:13px 16px; display:flex; align-items:center; gap:8px; }
         .qa-header-label { font-family:var(--mono); font-size:10px; letter-spacing:0.1em; text-transform:uppercase; flex:1; }
@@ -189,6 +196,7 @@ export default function Home() {
         .qa-input:focus { border-color:var(--accent); }
         .qa-send { background:var(--accent); border:none; border-radius:3px; color:white; font-family:var(--mono); font-size:11px; padding:7px 13px; cursor:pointer; }
         .qa-send:disabled { opacity:0.4; cursor:not-allowed; }
+
         .modal-bg { display:flex; position:fixed; inset:0; background:rgba(15,14,13,0.88); z-index:1000; align-items:center; justify-content:center; padding:24px; }
         .modal { background:var(--paper); max-width:560px; width:100%; border-radius:4px; max-height:85vh; overflow-y:auto; }
         .modal-header { background:var(--ink); padding:18px 22px; color:var(--paper); display:flex; align-items:center; justify-content:space-between; }
@@ -199,6 +207,7 @@ export default function Home() {
         .digest-content { font-size:14px; line-height:1.7; }
         .digest-content h3 { font-family:var(--serif); font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--accent); margin:18px 0 6px; }
         .digest-content p { margin-bottom:10px; }
+
         .empty-state { text-align:center; padding:56px 24px; font-family:var(--serif); font-style:italic; color:var(--ink-muted); font-size:17px; }
         .spinner { display:inline-block; width:18px; height:18px; border:2px solid var(--rule); border-top-color:var(--accent); border-radius:50%; animation:spin 0.8s linear infinite; }
         @keyframes spin { to{transform:rotate(360deg)} }
@@ -234,7 +243,7 @@ export default function Home() {
       <main className="container">
         {currentArticle ? (
           <div>
-            <button className="back-btn" onClick={closeArticle}>← Back to feed</button>
+            <button className="back-btn" onClick={() => setCurrentArticle(null)}>← Back to feed</button>
             <div className="article-full">
               <div>
                 <div className="article-kicker">{currentArticle.beatLabel} — {currentArticle.timestamp}</div>
@@ -245,6 +254,9 @@ export default function Home() {
                   <span>{new Date(currentArticle.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
                   <span>{currentArticle.sourceCredit}</span>
                 </div>
+                {currentArticle.imageUrl && (
+                  <img src={currentArticle.imageUrl} alt={currentArticle.headline} className="article-hero-img" />
+                )}
                 <div className="article-content">
                   {[currentArticle.lede, ...currentArticle.body.split('\n').filter(p => p.trim()), currentArticle.kicker]
                     .filter(Boolean).map((p, i) => <p key={i}>{p}</p>)}
@@ -294,6 +306,7 @@ export default function Home() {
               <>
                 <div className="hero-grid">
                   <div className="hero-article">
+                    {articles[0].imageUrl && <img src={articles[0].imageUrl} alt={articles[0].headline} className="hero-img" />}
                     <span className={`beat-tag ${articles[0].beat}`}>{articles[0].beatLabel}</span>
                     <div className="hero-headline" onClick={() => openArticle(articles[0])}>{articles[0].headline}</div>
                     <div className="hero-deck">{articles[0].deck}</div>
@@ -306,6 +319,7 @@ export default function Home() {
                   <div>
                     {articles.slice(1, 4).map((a, i) => (
                       <div key={i} className="sidebar-item" onClick={() => openArticle(a)}>
+                        {a.imageUrl && <img src={a.imageUrl} alt={a.headline} className="sidebar-img" />}
                         <span className={`beat-tag ${a.beat}`}>{a.beatLabel}</span>
                         <div className="sidebar-headline">{a.headline}</div>
                         <div className="sidebar-deck">{a.deck}</div>
@@ -317,6 +331,7 @@ export default function Home() {
                   <div className="secondary-grid">
                     {articles.slice(4).map((a, i) => (
                       <div key={i} className="article-card" onClick={() => openArticle(a)}>
+                        {a.imageUrl && <img src={a.imageUrl} alt={a.headline} className="article-img" style={{ marginBottom: '10px' }} />}
                         <span className={`beat-tag ${a.beat}`}>{a.beatLabel}</span>
                         <div className="card-headline">{a.headline}</div>
                         <div className="card-deck">{a.deck}</div>

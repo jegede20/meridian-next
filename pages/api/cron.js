@@ -2,12 +2,26 @@ const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const MODEL = 'llama-3.3-70b-versatile';
 
 const BEATS = [
-  { id: 'ai',       label: 'AI',       topics: ['artificial intelligence', 'large language models', 'AI safety', 'OpenAI', 'Anthropic', 'Google DeepMind'] },
-  { id: 'tech',     label: 'Tech',     topics: ['technology industry', 'Silicon Valley', 'semiconductors', 'Apple', 'Microsoft', 'cybersecurity'] },
-  { id: 'world',    label: 'World',    topics: ['geopolitics', 'international relations', 'global diplomacy', 'conflict zones', 'United Nations'] },
-  { id: 'science',  label: 'Science',  topics: ['climate change', 'space exploration', 'medical research', 'biology breakthroughs', 'quantum computing'] },
-  { id: 'business', label: 'Business', topics: ['global economy', 'financial markets', 'trade policy', 'corporate strategy', 'startups'] }
+  { id: 'ai',       label: 'AI',       topics: ['artificial intelligence', 'large language models', 'AI safety', 'OpenAI', 'Anthropic', 'Google DeepMind'], imageKeywords: 'artificial intelligence,technology,computer' },
+  { id: 'tech',     label: 'Tech',     topics: ['technology industry', 'Silicon Valley', 'semiconductors', 'Apple', 'Microsoft', 'cybersecurity'], imageKeywords: 'technology,silicon valley,innovation' },
+  { id: 'world',    label: 'World',    topics: ['geopolitics', 'international relations', 'global diplomacy', 'conflict zones', 'United Nations'], imageKeywords: 'world,geopolitics,diplomacy,city' },
+  { id: 'science',  label: 'Science',  topics: ['climate change', 'space exploration', 'medical research', 'biology breakthroughs', 'quantum computing'], imageKeywords: 'science,space,research,nature' },
+  { id: 'business', label: 'Business', topics: ['global economy', 'financial markets', 'trade policy', 'corporate strategy', 'startups'], imageKeywords: 'business,finance,economy,market' }
 ];
+
+function getImageUrl(beat, headline) {
+  const beatKeywords = {
+    ai: 'artificial+intelligence,technology,future',
+    tech: 'technology,innovation,digital',
+    world: 'world,city,politics,global',
+    science: 'science,space,nature,research',
+    business: 'business,finance,economy'
+  };
+  const keywords = beatKeywords[beat] || 'news,world';
+  // Use a random seed from headline to get consistent image per article
+  const seed = headline ? headline.split(' ').slice(0, 2).join('-').toLowerCase().replace(/[^a-z0-9-]/g, '') : beat;
+  return `https://picsum.photos/seed/${seed}/800/450`;
+}
 
 async function fetchHeadline(beat) {
   try {
@@ -24,7 +38,6 @@ async function fetchHeadline(beat) {
     url.searchParams.set('sortBy', 'publishedAt');
     url.searchParams.set('pageSize', '5');
     url.searchParams.set('apiKey', process.env.NEWS_API_KEY);
-
     const res = await fetch(url.toString());
     if (!res.ok) return null;
     const data = await res.json();
@@ -35,16 +48,27 @@ async function fetchHeadline(beat) {
   } catch { return null; }
 }
 
+function safeParseJSON(raw) {
+  let clean = raw.replace(/```json|```/g, '');
+  clean = clean.replace(/\n/g, ' ').replace(/\r/g, '').replace(/\t/g, ' ');
+  clean = clean.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+  clean = clean.trim();
+  const start = clean.indexOf('{');
+  const end = clean.lastIndexOf('}');
+  if (start === -1 || end === -1) throw new Error('No JSON object found');
+  return JSON.parse(clean.slice(start, end + 1));
+}
+
 async function generateArticle(beat) {
   const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
   const headline = await fetchHeadline(beat.id);
   const topic = beat.topics[Math.floor(Math.random() * beat.topics.length)];
 
-  const system = `You are the chief correspondent for Meridian, an AI-native publication with the standards of The Economist and The Atlantic. Write with precision, authority, and depth. Produce real journalism — not summaries. Never fabricate quotes or statistics.`;
+  const system = `You are the chief correspondent for Meridian, an AI-native publication with the standards of The Economist and The Atlantic. Write with precision, authority, and depth. Produce real journalism. Never fabricate quotes or statistics. IMPORTANT: Return only valid JSON with no newlines inside string values.`;
 
   const prompt = headline
-    ? `Expand this real news wire into a full Meridian article:\nHeadline: "${headline.title}"\nSummary: "${headline.description}"\nSource: ${headline.source}\nToday: ${today}\n\nAdd context, background, stakes, analysis. Do not copy wire text.\n\nReturn ONLY valid JSON:\n{"headline":"rewritten headline max 12 words","deck":"one sentence standfirst max 25 words","lede":"opening 2-3 sentences with impact","body":"four paragraphs separated by newlines, 60+ words each, real depth","kicker":"one closing sentence","readTime":"4 min read","sourceCredit":"${headline.source}"}`
-    : `Write a serious news article about: ${topic}. Today: ${today}.\n\nReturn ONLY valid JSON:\n{"headline":"strong headline max 12 words","deck":"one sentence standfirst max 25 words","lede":"opening 2-3 sentences","body":"four paragraphs separated by newlines, 60+ words each","kicker":"one closing sentence","readTime":"4 min read","sourceCredit":"Meridian Analysis"}`;
+    ? `Expand this real news wire into a full Meridian article. Wire: Headline: "${headline.title}" Summary: "${headline.description}" Source: ${headline.source}. Today: ${today}. Add context, background, stakes, analysis. Return ONLY this JSON with no newlines inside string values: {"headline":"rewritten headline max 12 words","deck":"one sentence standfirst max 25 words","lede":"opening 2-3 sentences with impact","body":"four paragraphs separated by double space 60 plus words each real depth","kicker":"one closing sentence","readTime":"4 min read","sourceCredit":"${headline.source}"}`
+    : `Write a serious news article about: ${topic}. Today: ${today}. Return ONLY this JSON with no newlines inside string values: {"headline":"strong headline max 12 words","deck":"one sentence standfirst max 25 words","lede":"opening 2-3 sentences","body":"four paragraphs separated by double space 60 plus words each","kicker":"one closing sentence","readTime":"4 min read","sourceCredit":"Meridian Analysis"}`;
 
   const res = await fetch(GROQ_URL, {
     method: 'POST',
@@ -53,9 +77,10 @@ async function generateArticle(beat) {
   });
   const data = await res.json();
   const raw = data.choices?.[0]?.message?.content || '';
-  const clean = raw.replace(/```json|```/g, '').trim();
-  const start = clean.indexOf('{'); const end = clean.lastIndexOf('}');
-  return JSON.parse(clean.slice(start, end + 1));
+  const article = safeParseJSON(raw);
+  // Attach image URL based on beat and headline
+  article.imageUrl = getImageUrl(beat.id, article.headline);
+  return article;
 }
 
 async function saveArticle(article, beat) {
@@ -68,38 +93,38 @@ async function saveArticle(article, beat) {
       'Prefer': 'return=minimal'
     },
     body: JSON.stringify({
-      headline: article.headline, deck: article.deck, lede: article.lede,
-      body: article.body, kicker: article.kicker, beat: beat.id,
-      beat_label: beat.label, read_time: article.readTime || '4 min read',
-      source_credit: article.sourceCredit || 'Meridian Analysis'
+      headline: article.headline,
+      deck: article.deck,
+      lede: article.lede,
+      body: article.body,
+      kicker: article.kicker,
+      beat: beat.id,
+      beat_label: beat.label,
+      read_time: article.readTime || '4 min read',
+      source_credit: article.sourceCredit || 'Meridian Analysis',
+      image_url: article.imageUrl
     })
   });
   if (!res.ok) throw new Error(await res.text());
 }
 
 export default async function handler(req, res) {
-  // Allow GET for manual trigger, Vercel cron uses GET
   if (req.method !== 'GET' && req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
-
   if (!process.env.GROQ_API_KEY || !process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
     return res.status(500).json({ error: 'Missing environment variables' });
   }
-
-  console.log('[Meridian Cron] Starting pipeline...');
 
   const results = await Promise.allSettled(
     BEATS.map(async (beat) => {
       const article = await generateArticle(beat);
       await saveArticle(article, beat);
-      console.log(`[Meridian] Published: ${article.headline}`);
-      return article;
+      return article.headline;
     })
   );
 
   const published = results.filter(r => r.status === 'fulfilled').length;
   const failed = results.filter(r => r.status === 'rejected').map(r => r.reason?.message);
-
   return res.status(200).json({ success: true, published, failed, timestamp: new Date().toISOString() });
 }

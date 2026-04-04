@@ -28,6 +28,7 @@ export default async function handler(req, res) {
       beatLabel: a.beat_label,
       readTime: a.read_time || '4 min read',
       sourceCredit: a.source_credit || 'Meridian Analysis',
+      imageUrl: a.image_url || getFallbackImage(a.beat),
       timestamp: new Date(a.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
       createdAt: a.created_at
     }));
@@ -36,4 +37,15 @@ export default async function handler(req, res) {
   } catch (err) {
     return res.status(500).json({ error: err.message, articles: [] });
   }
+}
+
+function getFallbackImage(beat) {
+  const keywords = {
+    ai: 'artificial+intelligence,technology',
+    tech: 'technology,innovation',
+    world: 'world,city,global',
+    science: 'science,space,nature',
+    business: 'business,finance'
+  };
+  const seed = beat + '-fallback'; return `https://picsum.photos/seed/${seed}/800/450`;
 }
