@@ -2,45 +2,63 @@ const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const MODEL = 'llama-3.3-70b-versatile';
 
 const BEATS = [
-  {
-    id: 'ai',
-    label: 'AI',
-    topics: ['OpenAI GPT models', 'Anthropic Claude AI', 'Google DeepMind research', 'AI safety regulations', 'large language model deployment'],
-    // Strict NewsAPI queries — only AI/tech topics
-    newsQuery: '"artificial intelligence" OR "machine learning" OR "OpenAI" OR "Anthropic" OR "DeepMind" OR "language model" OR "ChatGPT" OR "Gemini AI"',
-    imageQuery: 'artificial intelligence technology robot'
-  },
-  {
-    id: 'tech',
-    label: 'Tech',
-    topics: ['Apple product launches', 'Microsoft Azure cloud', 'Meta platforms strategy', 'semiconductor chip shortage', 'cybersecurity breaches'],
-    newsQuery: '"Apple" OR "Microsoft" OR "Meta" OR "Google" OR "Amazon" OR "semiconductor" OR "cybersecurity" OR "silicon valley" OR "startup funding"',
-    imageQuery: 'technology computer silicon valley innovation'
-  },
-  {
-    id: 'world',
-    label: 'World',
-    topics: ['US foreign policy', 'NATO alliance tensions', 'United Nations resolutions', 'Middle East diplomacy', 'China geopolitics'],
-    newsQuery: '"geopolitics" OR "diplomacy" OR "NATO" OR "United Nations" OR "foreign policy" OR "international relations" OR "war" OR "conflict" OR "sanctions"',
-    imageQuery: 'world politics diplomacy government'
-  },
-  {
-    id: 'science',
-    label: 'Science',
-    topics: ['NASA space missions', 'climate change research', 'medical breakthrough', 'quantum computing advance', 'biology discovery'],
-    newsQuery: '"NASA" OR "space exploration" OR "climate change" OR "medical research" OR "quantum computing" OR "scientific discovery" OR "biology" OR "physics"',
-    imageQuery: 'science space research laboratory nature'
-  },
-  {
-    id: 'business',
-    label: 'Business',
-    topics: ['Federal Reserve interest rates', 'stock market volatility', 'startup venture capital', 'global trade tariffs', 'corporate earnings'],
-    newsQuery: '"stock market" OR "Federal Reserve" OR "interest rates" OR "venture capital" OR "IPO" OR "trade war" OR "inflation" OR "GDP" OR "earnings"',
-    imageQuery: 'business finance economy stock market'
-  }
+  { id: 'ai',       label: 'AI',       fallback: 'OpenAI GPT-5 latest capabilities and safety research' },
+  { id: 'tech',     label: 'Tech',     fallback: 'Apple new product launch and market impact' },
+  { id: 'world',    label: 'World',    fallback: 'NATO alliance tensions and global diplomacy' },
+  { id: 'science',  label: 'Science',  fallback: 'NASA space mission discovery and climate research' },
+  { id: 'business', label: 'Business', fallback: 'Federal Reserve interest rate decision and markets' }
 ];
 
-// Fetch relevant image from Unsplash based on article headline
+// Strict beat classification rules
+const BEAT_RULES = {
+  ai: ['artificial intelligence', 'machine learning', 'openai', 'anthropic', 'deepmind', 'chatgpt', 'gpt', 'llm', 'neural network', 'claude', 'gemini ai', 'ai model', 'language model', 'deep learning', 'generative ai'],
+  tech: ['apple', 'microsoft', 'google', 'meta', 'amazon', 'samsung', 'semiconductor', 'chip', 'cybersecurity', 'software', 'hardware', 'silicon valley', 'smartphone', 'iphone', 'android', 'windows', 'cloud computing', 'hack', 'breach'],
+  world: ['war', 'conflict', 'nato', 'united nations', 'diplomacy', 'military', 'sanction', 'foreign policy', 'geopolit', 'president', 'prime minister', 'treaty', 'troops', 'missile', 'nuclear', 'election', 'government', 'iran', 'russia', 'china', 'ukraine', 'israel', 'gaza', 'refugee'],
+  science: ['nasa', 'space', 'climate', 'research study', 'scientists', 'discovery', 'planet', 'biology', 'physics', 'medical', 'health', 'quantum', 'genome', 'species', 'ocean', 'asteroid', 'vaccine', 'cancer', 'environment'],
+  business: ['stock market', 'wall street', 'federal reserve', 'interest rate', 'inflation', 'gdp', 'trade war', 'tariff', 'ipo', 'venture capital', 'startup funding', 'earnings', 'revenue', 'acquisition', 'merger', 'economy', 'bitcoin', 'crypto', 'hedge fund', 'recession']
+};
+
+function classifyBeat(title, description) {
+  const text = (title + ' ' + description).toLowerCase();
+  const scores = {};
+
+  for (const [beat, keywords] of Object.entries(BEAT_RULES)) {
+    scores[beat] = keywords.filter(kw => text.includes(kw)).length;
+  }
+
+  const best = Object.entries(scores).sort((a, b) => b[1] - a[1])[0];
+  // Only classify if we have at least 1 keyword match
+  return best[1] > 0 ? best[0] : null;
+}
+
+async function fetchHeadlinesForBeat(beatId) {
+  const queries = {
+    ai: '"artificial intelligence" OR "OpenAI" OR "ChatGPT" OR "Anthropic" OR "language model" OR "AI model" OR "machine learning"',
+    tech: '"Apple" OR "Microsoft" OR "Google" OR "Meta" OR "semiconductor" OR "cybersecurity" OR "smartphone" OR "silicon valley"',
+    world: '"war" OR "conflict" OR "NATO" OR "diplomacy" OR "military" OR "sanctions" OR "geopolitics" OR "foreign policy"',
+    science: '"NASA" OR "space exploration" OR "climate change" OR "scientists discover" OR "medical research" OR "quantum"',
+    business: '"stock market" OR "Federal Reserve" OR "interest rates" OR "inflation" OR "trade tariff" OR "venture capital" OR "IPO" OR "crypto"'
+  };
+
+  try {
+    const url = new URL('https://newsapi.org/v2/everything');
+    url.searchParams.set('q', queries[beatId]);
+    url.searchParams.set('language', 'en');
+    url.searchParams.set('sortBy', 'publishedAt');
+    url.searchParams.set('pageSize', '10');
+    url.searchParams.set('apiKey', process.env.NEWS_API_KEY);
+
+    const res = await fetch(url.toString());
+    if (!res.ok) return [];
+    const data = await res.json();
+
+    return (data.articles || []).filter(a =>
+      a.title && a.title !== '[Removed]' &&
+      a.description && a.description !== '[Removed]'
+    );
+  } catch { return []; }
+}
+
 async function fetchUnsplashImage(query) {
   try {
     const url = `https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&per_page=10&orientation=landscape`;
@@ -51,53 +69,14 @@ async function fetchUnsplashImage(query) {
     const data = await res.json();
     const results = data.results || [];
     if (!results.length) return null;
-    // Pick a random image from top 10 results
     const pick = results[Math.floor(Math.random() * Math.min(results.length, 10))];
-    return pick.urls?.regular || pick.urls?.small || null;
+    return pick.urls?.regular || null;
   } catch { return null; }
 }
 
-// Fallback image using Picsum if Unsplash fails
 function getFallbackImage(beat) {
-  const seeds = { ai: 'tech-ai-42', tech: 'technology-99', world: 'world-city-7', science: 'science-space-23', business: 'finance-55' };
+  const seeds = { ai: 'ai-robot-42', tech: 'technology-99', world: 'world-city-7', science: 'science-space-23', business: 'finance-market-55' };
   return `https://picsum.photos/seed/${seeds[beat] || 'news'}/800/450`;
-}
-
-async function fetchHeadline(beat) {
-  try {
-    const url = new URL('https://newsapi.org/v2/everything');
-    url.searchParams.set('q', beat.newsQuery);
-    url.searchParams.set('language', 'en');
-    url.searchParams.set('sortBy', 'publishedAt');
-    url.searchParams.set('pageSize', '10');
-    url.searchParams.set('apiKey', process.env.NEWS_API_KEY);
-    const res = await fetch(url.toString());
-    if (!res.ok) return null;
-    const data = await res.json();
-    const valid = (data.articles || []).filter(a =>
-      a.title && a.title !== '[Removed]' &&
-      a.description && a.description !== '[Removed]' &&
-      // Extra filter: make sure article is actually relevant to this beat
-      isRelevantToBeat(a.title + ' ' + a.description, beat.id)
-    );
-    if (!valid.length) return null;
-    const pick = valid[Math.floor(Math.random() * Math.min(valid.length, 5))];
-    return { title: pick.title, description: pick.description, source: pick.source?.name || 'wire' };
-  } catch { return null; }
-}
-
-// Check if headline is actually relevant to the beat
-function isRelevantToBeat(text, beatId) {
-  const lower = text.toLowerCase();
-  const beatKeywords = {
-    ai: ['ai', 'artificial intelligence', 'machine learning', 'openai', 'anthropic', 'deepmind', 'chatgpt', 'llm', 'neural', 'gemini', 'claude', 'gpt'],
-    tech: ['apple', 'microsoft', 'google', 'meta', 'amazon', 'tech', 'software', 'app', 'chip', 'semiconductor', 'cyber', 'hack', 'data', 'cloud'],
-    world: ['war', 'conflict', 'nato', 'un ', 'united nations', 'diplomacy', 'sanction', 'foreign', 'military', 'government', 'president', 'minister', 'election', 'treaty', 'geopolit'],
-    science: ['nasa', 'space', 'climate', 'research', 'study', 'science', 'planet', 'discovery', 'medical', 'health', 'quantum', 'biology', 'physics', 'environment'],
-    business: ['market', 'stock', 'economy', 'gdp', 'inflation', 'fed ', 'federal reserve', 'trade', 'tariff', 'ipo', 'startup', 'billion', 'revenue', 'earnings', 'invest']
-  };
-  const keywords = beatKeywords[beatId] || [];
-  return keywords.some(kw => lower.includes(kw));
 }
 
 function safeParseJSON(raw) {
@@ -134,30 +113,52 @@ function safeParseJSON(raw) {
   }
 }
 
-async function generateArticle(beat) {
+async function generateArticleForBeat(beat, usedHeadlines) {
   const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-  const headline = await fetchHeadline(beat);
-  const topic = beat.topics[Math.floor(Math.random() * beat.topics.length)];
 
-  const system = `You are the chief correspondent for Meridian, covering the ${beat.label} beat. You ONLY write about ${beat.label} topics. Write with precision, authority, and depth. Produce real journalism. Never fabricate quotes or statistics. Return only valid JSON with no newlines inside string values.`;
+  // Fetch headlines and find one that actually matches this beat
+  const candidates = await fetchHeadlinesForBeat(beat.id);
+  let chosenHeadline = null;
 
-  const prompt = headline
-    ? `Expand this real ${beat.label} news wire into a full Meridian article. Wire: Headline: "${headline.title}" Summary: "${headline.description}" Source: ${headline.source}. Today: ${today}. Add context, background, stakes, analysis. Return ONLY this JSON: {"headline":"rewritten headline max 12 words","deck":"one sentence standfirst max 25 words","lede":"opening 2-3 sentences with impact","body":"four paragraphs separated by double space 60 plus words each","kicker":"one closing sentence","readTime":"4 min read","sourceCredit":"${headline.source}","imageSearchQuery":"3 specific keywords describing the visual content of this story for image search"}`
-    : `Write a serious ${beat.label} news article about: ${topic}. Today: ${today}. Return ONLY this JSON: {"headline":"strong headline max 12 words","deck":"one sentence standfirst max 25 words","lede":"opening 2-3 sentences","body":"four paragraphs separated by double space 60 plus words each","kicker":"one closing sentence","readTime":"4 min read","sourceCredit":"Meridian Analysis","imageSearchQuery":"3 specific keywords describing the visual content of this story for image search"}`;
+  for (const candidate of candidates) {
+    const classified = classifyBeat(candidate.title, candidate.description);
+    // Only use if it classifies to THIS beat AND hasn't been used
+    if (classified === beat.id && !usedHeadlines.has(candidate.title)) {
+      chosenHeadline = candidate;
+      usedHeadlines.add(candidate.title);
+      break;
+    }
+  }
+
+  const system = `You are the chief correspondent for Meridian covering the ${beat.label} beat exclusively. You ONLY write about ${beat.label} topics. Write with precision, authority, and depth. Never fabricate quotes or statistics. Return only valid JSON with no newlines inside string values.`;
+
+  const prompt = chosenHeadline
+    ? `Expand this real ${beat.label} news wire into a full Meridian article.
+Wire headline: "${chosenHeadline.title}"
+Wire summary: "${chosenHeadline.description}"
+Source: ${chosenHeadline.source?.name || 'wire'}
+Today: ${today}
+
+This is a ${beat.label.toUpperCase()} story. Write it as such.
+Return ONLY this JSON (no newlines in values):
+{"headline":"rewritten headline max 12 words","deck":"standfirst max 25 words","lede":"opening 2-3 sentences","body":"four paragraphs double-spaced 60+ words each","kicker":"one closing sentence","readTime":"4 min read","sourceCredit":"${chosenHeadline.source?.name || 'wire'}","imageSearchQuery":"3 specific visual keywords for this story"}`
+    : `Write a serious ${beat.label} news article about: ${beat.fallback}
+Today: ${today}
+Return ONLY this JSON (no newlines in values):
+{"headline":"headline max 12 words","deck":"standfirst max 25 words","lede":"opening 2-3 sentences","body":"four paragraphs double-spaced 60+ words each","kicker":"one closing sentence","readTime":"4 min read","sourceCredit":"Meridian Analysis","imageSearchQuery":"3 specific visual keywords for this story"}`;
 
   const res = await fetch(GROQ_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.GROQ_API_KEY}` },
     body: JSON.stringify({ model: MODEL, temperature: 0.7, max_tokens: 1200, messages: [{ role: 'system', content: system }, { role: 'user', content: prompt }] })
   });
+
   const data = await res.json();
   const raw = data.choices?.[0]?.message?.content || '';
   const article = safeParseJSON(raw);
 
-  // Fetch relevant image using article's own image search query
-  const imageQuery = article.imageSearchQuery || beat.imageQuery;
-  const imageUrl = await fetchUnsplashImage(imageQuery) || getFallbackImage(beat.id);
-  article.imageUrl = imageUrl;
+  const imageQuery = article.imageSearchQuery || beat.id;
+  article.imageUrl = await fetchUnsplashImage(imageQuery) || getFallbackImage(beat.id);
 
   return article;
 }
@@ -175,7 +176,7 @@ async function saveArticle(article, beat) {
       headline: article.headline,
       deck: article.deck,
       lede: article.lede,
-      body: article.body,
+      body: article.body || '',
       kicker: article.kicker,
       beat: beat.id,
       beat_label: beat.label,
@@ -195,24 +196,20 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Missing environment variables' });
   }
 
-  // Process beats sequentially to avoid duplicate headlines across beats
+  // Track used headlines to prevent duplicates across beats
   const usedHeadlines = new Set();
   const results = [];
 
+  // Process sequentially to avoid duplicate content
   for (const beat of BEATS) {
     try {
-      const article = await generateArticle(beat);
-      // Skip if same headline already published in this run
-      if (usedHeadlines.has(article.headline)) {
-        // Regenerate with fallback topic
-        const topic = beat.topics[Math.floor(Math.random() * beat.topics.length)];
-        article.headline = topic + ' — Latest Developments';
-      }
-      usedHeadlines.add(article.headline);
+      const article = await generateArticleForBeat(beat, usedHeadlines);
       await saveArticle(article, beat);
       results.push({ status: 'fulfilled', value: article.headline });
+      console.log(`[${beat.label}] Published: ${article.headline}`);
     } catch (err) {
       results.push({ status: 'rejected', reason: err });
+      console.error(`[${beat.label}] Failed:`, err.message);
     }
   }
 
