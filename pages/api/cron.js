@@ -55,15 +55,19 @@ async function fetchHeadline(beat) {
 
 async function fetchUnsplashImage(query) {
   try {
+    // Random page 1-3 to get variety across articles with similar queries
+    const page = Math.floor(Math.random() * 3) + 1;
     const res = await fetch(
-      `https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&per_page=10&orientation=landscape`,
+      `https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&per_page=10&page=${page}&orientation=landscape`,
       { headers: { 'Authorization': `Client-ID ${process.env.UNSPLASH_ACCESS_KEY}` } }
     );
     if (!res.ok) return null;
     const data = await res.json();
     const results = data.results || [];
     if (!results.length) return null;
-    return results[Math.floor(Math.random() * Math.min(results.length, 5))].urls?.regular || null;
+    // Pick randomly from results
+    const pick = results[Math.floor(Math.random() * results.length)];
+    return pick.urls?.regular || null;
   } catch { return null; }
 }
 
