@@ -2,50 +2,102 @@ const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const MODEL = 'llama-3.3-70b-versatile';
 
 const BEATS = [
-  { id: 'ai',       label: 'AI',       topics: ['artificial intelligence', 'large language models', 'AI safety', 'OpenAI', 'Anthropic', 'Google DeepMind'], imageKeywords: 'artificial intelligence,technology,computer' },
-  { id: 'tech',     label: 'Tech',     topics: ['technology industry', 'Silicon Valley', 'semiconductors', 'Apple', 'Microsoft', 'cybersecurity'], imageKeywords: 'technology,silicon valley,innovation' },
-  { id: 'world',    label: 'World',    topics: ['geopolitics', 'international relations', 'global diplomacy', 'conflict zones', 'United Nations'], imageKeywords: 'world,geopolitics,diplomacy,city' },
-  { id: 'science',  label: 'Science',  topics: ['climate change', 'space exploration', 'medical research', 'biology breakthroughs', 'quantum computing'], imageKeywords: 'science,space,research,nature' },
-  { id: 'business', label: 'Business', topics: ['global economy', 'financial markets', 'trade policy', 'corporate strategy', 'startups'], imageKeywords: 'business,finance,economy,market' }
+  {
+    id: 'ai',
+    label: 'AI',
+    topics: ['OpenAI GPT models', 'Anthropic Claude AI', 'Google DeepMind research', 'AI safety regulations', 'large language model deployment'],
+    // Strict NewsAPI queries — only AI/tech topics
+    newsQuery: '"artificial intelligence" OR "machine learning" OR "OpenAI" OR "Anthropic" OR "DeepMind" OR "language model" OR "ChatGPT" OR "Gemini AI"',
+    imageQuery: 'artificial intelligence technology robot'
+  },
+  {
+    id: 'tech',
+    label: 'Tech',
+    topics: ['Apple product launches', 'Microsoft Azure cloud', 'Meta platforms strategy', 'semiconductor chip shortage', 'cybersecurity breaches'],
+    newsQuery: '"Apple" OR "Microsoft" OR "Meta" OR "Google" OR "Amazon" OR "semiconductor" OR "cybersecurity" OR "silicon valley" OR "startup funding"',
+    imageQuery: 'technology computer silicon valley innovation'
+  },
+  {
+    id: 'world',
+    label: 'World',
+    topics: ['US foreign policy', 'NATO alliance tensions', 'United Nations resolutions', 'Middle East diplomacy', 'China geopolitics'],
+    newsQuery: '"geopolitics" OR "diplomacy" OR "NATO" OR "United Nations" OR "foreign policy" OR "international relations" OR "war" OR "conflict" OR "sanctions"',
+    imageQuery: 'world politics diplomacy government'
+  },
+  {
+    id: 'science',
+    label: 'Science',
+    topics: ['NASA space missions', 'climate change research', 'medical breakthrough', 'quantum computing advance', 'biology discovery'],
+    newsQuery: '"NASA" OR "space exploration" OR "climate change" OR "medical research" OR "quantum computing" OR "scientific discovery" OR "biology" OR "physics"',
+    imageQuery: 'science space research laboratory nature'
+  },
+  {
+    id: 'business',
+    label: 'Business',
+    topics: ['Federal Reserve interest rates', 'stock market volatility', 'startup venture capital', 'global trade tariffs', 'corporate earnings'],
+    newsQuery: '"stock market" OR "Federal Reserve" OR "interest rates" OR "venture capital" OR "IPO" OR "trade war" OR "inflation" OR "GDP" OR "earnings"',
+    imageQuery: 'business finance economy stock market'
+  }
 ];
 
-function getImageUrl(beat, headline) {
-  const beatKeywords = {
-    ai: 'artificial+intelligence,technology,future',
-    tech: 'technology,innovation,digital',
-    world: 'world,city,politics,global',
-    science: 'science,space,nature,research',
-    business: 'business,finance,economy'
-  };
-  const keywords = beatKeywords[beat] || 'news,world';
-  // Use a random seed from headline to get consistent image per article
-  const seed = headline ? headline.split(' ').slice(0, 2).join('-').toLowerCase().replace(/[^a-z0-9-]/g, '') : beat;
-  return `https://picsum.photos/seed/${seed}/800/450`;
+// Fetch relevant image from Unsplash based on article headline
+async function fetchUnsplashImage(query) {
+  try {
+    const url = `https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&per_page=10&orientation=landscape`;
+    const res = await fetch(url, {
+      headers: { 'Authorization': `Client-ID ${process.env.UNSPLASH_ACCESS_KEY}` }
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const results = data.results || [];
+    if (!results.length) return null;
+    // Pick a random image from top 10 results
+    const pick = results[Math.floor(Math.random() * Math.min(results.length, 10))];
+    return pick.urls?.regular || pick.urls?.small || null;
+  } catch { return null; }
+}
+
+// Fallback image using Picsum if Unsplash fails
+function getFallbackImage(beat) {
+  const seeds = { ai: 'tech-ai-42', tech: 'technology-99', world: 'world-city-7', science: 'science-space-23', business: 'finance-55' };
+  return `https://picsum.photos/seed/${seeds[beat] || 'news'}/800/450`;
 }
 
 async function fetchHeadline(beat) {
   try {
-    const queries = {
-      ai: 'artificial intelligence OR OpenAI OR Anthropic OR "language model"',
-      tech: 'technology OR Apple OR Microsoft OR Meta OR Google OR semiconductor',
-      world: 'geopolitics OR diplomacy OR conflict OR NATO OR "United Nations"',
-      science: 'science OR climate OR NASA OR "medical research" OR biology',
-      business: 'economy OR markets OR trade OR startup OR "venture capital"'
-    };
     const url = new URL('https://newsapi.org/v2/everything');
-    url.searchParams.set('q', queries[beat]);
+    url.searchParams.set('q', beat.newsQuery);
     url.searchParams.set('language', 'en');
     url.searchParams.set('sortBy', 'publishedAt');
-    url.searchParams.set('pageSize', '5');
+    url.searchParams.set('pageSize', '10');
     url.searchParams.set('apiKey', process.env.NEWS_API_KEY);
     const res = await fetch(url.toString());
     if (!res.ok) return null;
     const data = await res.json();
-    const valid = (data.articles || []).filter(a => a.title && a.title !== '[Removed]' && a.description && a.description !== '[Removed]');
+    const valid = (data.articles || []).filter(a =>
+      a.title && a.title !== '[Removed]' &&
+      a.description && a.description !== '[Removed]' &&
+      // Extra filter: make sure article is actually relevant to this beat
+      isRelevantToBeat(a.title + ' ' + a.description, beat.id)
+    );
     if (!valid.length) return null;
-    const pick = valid[Math.floor(Math.random() * valid.length)];
+    const pick = valid[Math.floor(Math.random() * Math.min(valid.length, 5))];
     return { title: pick.title, description: pick.description, source: pick.source?.name || 'wire' };
   } catch { return null; }
+}
+
+// Check if headline is actually relevant to the beat
+function isRelevantToBeat(text, beatId) {
+  const lower = text.toLowerCase();
+  const beatKeywords = {
+    ai: ['ai', 'artificial intelligence', 'machine learning', 'openai', 'anthropic', 'deepmind', 'chatgpt', 'llm', 'neural', 'gemini', 'claude', 'gpt'],
+    tech: ['apple', 'microsoft', 'google', 'meta', 'amazon', 'tech', 'software', 'app', 'chip', 'semiconductor', 'cyber', 'hack', 'data', 'cloud'],
+    world: ['war', 'conflict', 'nato', 'un ', 'united nations', 'diplomacy', 'sanction', 'foreign', 'military', 'government', 'president', 'minister', 'election', 'treaty', 'geopolit'],
+    science: ['nasa', 'space', 'climate', 'research', 'study', 'science', 'planet', 'discovery', 'medical', 'health', 'quantum', 'biology', 'physics', 'environment'],
+    business: ['market', 'stock', 'economy', 'gdp', 'inflation', 'fed ', 'federal reserve', 'trade', 'tariff', 'ipo', 'startup', 'billion', 'revenue', 'earnings', 'invest']
+  };
+  const keywords = beatKeywords[beatId] || [];
+  return keywords.some(kw => lower.includes(kw));
 }
 
 function safeParseJSON(raw) {
@@ -61,14 +113,14 @@ function safeParseJSON(raw) {
 
 async function generateArticle(beat) {
   const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-  const headline = await fetchHeadline(beat.id);
+  const headline = await fetchHeadline(beat);
   const topic = beat.topics[Math.floor(Math.random() * beat.topics.length)];
 
-  const system = `You are the chief correspondent for Meridian, an AI-native publication with the standards of The Economist and The Atlantic. Write with precision, authority, and depth. Produce real journalism. Never fabricate quotes or statistics. IMPORTANT: Return only valid JSON with no newlines inside string values.`;
+  const system = `You are the chief correspondent for Meridian, covering the ${beat.label} beat. You ONLY write about ${beat.label} topics. Write with precision, authority, and depth. Produce real journalism. Never fabricate quotes or statistics. Return only valid JSON with no newlines inside string values.`;
 
   const prompt = headline
-    ? `Expand this real news wire into a full Meridian article. Wire: Headline: "${headline.title}" Summary: "${headline.description}" Source: ${headline.source}. Today: ${today}. Add context, background, stakes, analysis. Return ONLY this JSON with no newlines inside string values: {"headline":"rewritten headline max 12 words","deck":"one sentence standfirst max 25 words","lede":"opening 2-3 sentences with impact","body":"four paragraphs separated by double space 60 plus words each real depth","kicker":"one closing sentence","readTime":"4 min read","sourceCredit":"${headline.source}"}`
-    : `Write a serious news article about: ${topic}. Today: ${today}. Return ONLY this JSON with no newlines inside string values: {"headline":"strong headline max 12 words","deck":"one sentence standfirst max 25 words","lede":"opening 2-3 sentences","body":"four paragraphs separated by double space 60 plus words each","kicker":"one closing sentence","readTime":"4 min read","sourceCredit":"Meridian Analysis"}`;
+    ? `Expand this real ${beat.label} news wire into a full Meridian article. Wire: Headline: "${headline.title}" Summary: "${headline.description}" Source: ${headline.source}. Today: ${today}. Add context, background, stakes, analysis. Return ONLY this JSON: {"headline":"rewritten headline max 12 words","deck":"one sentence standfirst max 25 words","lede":"opening 2-3 sentences with impact","body":"four paragraphs separated by double space 60 plus words each","kicker":"one closing sentence","readTime":"4 min read","sourceCredit":"${headline.source}","imageSearchQuery":"3 specific keywords describing the visual content of this story for image search"}`
+    : `Write a serious ${beat.label} news article about: ${topic}. Today: ${today}. Return ONLY this JSON: {"headline":"strong headline max 12 words","deck":"one sentence standfirst max 25 words","lede":"opening 2-3 sentences","body":"four paragraphs separated by double space 60 plus words each","kicker":"one closing sentence","readTime":"4 min read","sourceCredit":"Meridian Analysis","imageSearchQuery":"3 specific keywords describing the visual content of this story for image search"}`;
 
   const res = await fetch(GROQ_URL, {
     method: 'POST',
@@ -78,8 +130,12 @@ async function generateArticle(beat) {
   const data = await res.json();
   const raw = data.choices?.[0]?.message?.content || '';
   const article = safeParseJSON(raw);
-  // Attach image URL based on beat and headline
-  article.imageUrl = getImageUrl(beat.id, article.headline);
+
+  // Fetch relevant image using article's own image search query
+  const imageQuery = article.imageSearchQuery || beat.imageQuery;
+  const imageUrl = await fetchUnsplashImage(imageQuery) || getFallbackImage(beat.id);
+  article.imageUrl = imageUrl;
+
   return article;
 }
 
