@@ -133,24 +133,13 @@ async function generateArticleForBeat(beat, usedHeadlines) {
   const system = `You are the chief correspondent for Meridian covering the ${beat.label} beat exclusively. You ONLY write about ${beat.label} topics. Write with precision, authority, and depth. Never fabricate quotes or statistics. Return only valid JSON with no newlines inside string values.`;
 
   const prompt = chosenHeadline
-    ? `Expand this real ${beat.label} news wire into a full Meridian article.
-Wire headline: "${chosenHeadline.title}"
-Wire summary: "${chosenHeadline.description}"
-Source: ${chosenHeadline.source?.name || 'wire'}
-Today: ${today}
-
-This is a ${beat.label.toUpperCase()} story. Write it as such.
-Return ONLY this JSON (no newlines in values):
-{"headline":"rewritten headline max 12 words","deck":"standfirst max 25 words","lede":"opening 2-3 sentences","body":"four paragraphs double-spaced 60+ words each","kicker":"one closing sentence","readTime":"4 min read","sourceCredit":"${chosenHeadline.source?.name || 'wire'}","imageSearchQuery":"3 specific visual keywords for this story"}`
-    : `Write a serious ${beat.label} news article about: ${beat.fallback}
-Today: ${today}
-Return ONLY this JSON (no newlines in values):
-{"headline":"headline max 12 words","deck":"standfirst max 25 words","lede":"opening 2-3 sentences","body":"four paragraphs double-spaced 60+ words each","kicker":"one closing sentence","readTime":"4 min read","sourceCredit":"Meridian Analysis","imageSearchQuery":"3 specific visual keywords for this story"}`;
+    ? `Write a Meridian ${beat.label} article from this wire: "${chosenHeadline.title}" - ${chosenHeadline.description} (${chosenHeadline.source?.name || 'wire'}, ${today}). Return ONLY JSON, no newlines in values: {"headline":"max 12 words","deck":"max 25 words","lede":"2-3 sentences","body":"4 paragraphs 50+ words each separated by double space","kicker":"1 sentence","readTime":"4 min read","sourceCredit":"${chosenHeadline.source?.name || 'wire'}","imageSearchQuery":"3 visual keywords"}`
+    : `Write a Meridian ${beat.label} article about: ${beat.fallback} (${today}). Return ONLY JSON, no newlines in values: {"headline":"max 12 words","deck":"max 25 words","lede":"2-3 sentences","body":"4 paragraphs 50+ words each separated by double space","kicker":"1 sentence","readTime":"4 min read","sourceCredit":"Meridian Analysis","imageSearchQuery":"3 visual keywords"}`;
 
   const res = await fetch(GROQ_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.GROQ_API_KEY}` },
-    body: JSON.stringify({ model: MODEL, temperature: 0.7, max_tokens: 1200, messages: [{ role: 'system', content: system }, { role: 'user', content: prompt }] })
+    body: JSON.stringify({ model: MODEL, temperature: 0.7, max_tokens: 2000, messages: [{ role: 'system', content: system }, { role: 'user', content: prompt }] })
   });
 
   const data = await res.json();
