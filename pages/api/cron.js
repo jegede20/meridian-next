@@ -2,158 +2,121 @@ const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const MODEL = 'llama-3.3-70b-versatile';
 
 const BEATS = [
-  { id: 'ai',       label: 'AI',       fallback: 'OpenAI GPT-5 latest capabilities and safety research' },
-  { id: 'tech',     label: 'Tech',     fallback: 'Apple new product launch and market impact' },
-  { id: 'world',    label: 'World',    fallback: 'NATO alliance tensions and global diplomacy' },
-  { id: 'science',  label: 'Science',  fallback: 'NASA space mission discovery and climate research' },
-  { id: 'business', label: 'Business', fallback: 'Federal Reserve interest rate decision and markets' }
+  { id: 'ai',       label: 'AI',       topic: 'artificial intelligence, OpenAI, Anthropic, AI safety' },
+  { id: 'tech',     label: 'Tech',     topic: 'technology, Apple, Microsoft, cybersecurity, semiconductors' },
+  { id: 'world',    label: 'World',    topic: 'geopolitics, NATO, diplomacy, international conflict, foreign policy' },
+  { id: 'science',  label: 'Science',  topic: 'space exploration, climate science, medical research, biology' },
+  { id: 'business', label: 'Business', topic: 'stock markets, Federal Reserve, trade, startups, economy' }
 ];
 
-// Strict beat classification rules
-const BEAT_RULES = {
-  ai: ['artificial intelligence', 'machine learning', 'openai', 'anthropic', 'deepmind', 'chatgpt', 'gpt', 'llm', 'neural network', 'claude', 'gemini ai', 'ai model', 'language model', 'deep learning', 'generative ai'],
-  tech: ['apple', 'microsoft', 'google', 'meta', 'amazon', 'samsung', 'semiconductor', 'chip', 'cybersecurity', 'software', 'hardware', 'silicon valley', 'smartphone', 'iphone', 'android', 'windows', 'cloud computing', 'hack', 'breach'],
-  world: ['war', 'conflict', 'nato', 'united nations', 'diplomacy', 'military', 'sanction', 'foreign policy', 'geopolit', 'president', 'prime minister', 'treaty', 'troops', 'missile', 'nuclear', 'election', 'government', 'iran', 'russia', 'china', 'ukraine', 'israel', 'gaza', 'refugee'],
-  science: ['nasa', 'space', 'climate', 'research study', 'scientists', 'discovery', 'planet', 'biology', 'physics', 'medical', 'health', 'quantum', 'genome', 'species', 'ocean', 'asteroid', 'vaccine', 'cancer', 'environment'],
-  business: ['stock market', 'wall street', 'federal reserve', 'interest rate', 'inflation', 'gdp', 'trade war', 'tariff', 'ipo', 'venture capital', 'startup funding', 'earnings', 'revenue', 'acquisition', 'merger', 'economy', 'bitcoin', 'crypto', 'hedge fund', 'recession']
+const BEAT_KEYWORDS = {
+  ai:       ['artificial intelligence','machine learning','openai','anthropic','deepmind','chatgpt','gpt','llm','claude ai','gemini ai','neural','ai model','language model'],
+  tech:     ['apple inc','microsoft','samsung','semiconductor','cybersecurity','iphone','android','windows','silicon valley','software','hardware','chip maker'],
+  world:    ['war','conflict','nato','united nations','diplomacy','military','sanction','foreign policy','geopolit','troops','missile','nuclear','election result','iran','russia','ukraine','israel','gaza'],
+  science:  ['nasa','space exploration','climate change','scientists','discovery','planet','biology','physics','medical breakthrough','quantum','genome','species','asteroid','vaccine'],
+  business: ['stock market','wall street','federal reserve','interest rate','inflation','gdp','trade war','tariff','ipo','venture capital','earnings report','acquisition','merger','bitcoin','cryptocurrency','recession']
 };
 
-function classifyBeat(title, description) {
-  const text = (title + ' ' + description).toLowerCase();
-  const scores = {};
-
-  for (const [beat, keywords] of Object.entries(BEAT_RULES)) {
-    scores[beat] = keywords.filter(kw => text.includes(kw)).length;
-  }
-
-  const best = Object.entries(scores).sort((a, b) => b[1] - a[1])[0];
-  // Only classify if we have at least 1 keyword match
-  return best[1] > 0 ? best[0] : null;
+function getBeatScore(text, beatId) {
+  const lower = text.toLowerCase();
+  return BEAT_KEYWORDS[beatId].filter(kw => lower.includes(kw)).length;
 }
 
-async function fetchHeadlinesForBeat(beatId) {
-  const queries = {
-    ai: '"artificial intelligence" OR "OpenAI" OR "ChatGPT" OR "Anthropic" OR "language model" OR "AI model" OR "machine learning"',
-    tech: '"Apple" OR "Microsoft" OR "Google" OR "Meta" OR "semiconductor" OR "cybersecurity" OR "smartphone" OR "silicon valley"',
-    world: '"war" OR "conflict" OR "NATO" OR "diplomacy" OR "military" OR "sanctions" OR "geopolitics" OR "foreign policy"',
-    science: '"NASA" OR "space exploration" OR "climate change" OR "scientists discover" OR "medical research" OR "quantum"',
-    business: '"stock market" OR "Federal Reserve" OR "interest rates" OR "inflation" OR "trade tariff" OR "venture capital" OR "IPO" OR "crypto"'
-  };
-
+async function fetchBestHeadline(beat, usedTitles) {
   try {
+    const queries = {
+      ai:       '"artificial intelligence" OR "OpenAI" OR "ChatGPT" OR "Anthropic" OR "AI model"',
+      tech:     '"Apple" OR "Microsoft" OR "Google" OR "semiconductor" OR "cybersecurity"',
+      world:    '"conflict" OR "NATO" OR "diplomacy" OR "military" OR "sanctions" OR "war"',
+      science:  '"NASA" OR "climate change" OR "scientists" OR "space" OR "medical research"',
+      business: '"stock market" OR "Federal Reserve" OR "inflation" OR "trade" OR "crypto"'
+    };
+
     const url = new URL('https://newsapi.org/v2/everything');
-    url.searchParams.set('q', queries[beatId]);
+    url.searchParams.set('q', queries[beat.id]);
     url.searchParams.set('language', 'en');
     url.searchParams.set('sortBy', 'publishedAt');
     url.searchParams.set('pageSize', '10');
     url.searchParams.set('apiKey', process.env.NEWS_API_KEY);
 
     const res = await fetch(url.toString());
-    if (!res.ok) return [];
+    if (!res.ok) return null;
     const data = await res.json();
-
-    return (data.articles || []).filter(a =>
+    const articles = (data.articles || []).filter(a =>
       a.title && a.title !== '[Removed]' &&
-      a.description && a.description !== '[Removed]'
+      a.description && a.description !== '[Removed]' &&
+      !usedTitles.has(a.title)
     );
-  } catch { return []; }
+
+    // Pick the article that scores highest for THIS beat
+    const scored = articles.map(a => ({
+      ...a,
+      score: getBeatScore(a.title + ' ' + a.description, beat.id)
+    })).sort((a, b) => b.score - a.score);
+
+    return scored[0]?.score > 0 ? scored[0] : null;
+  } catch { return null; }
 }
 
 async function fetchUnsplashImage(query) {
   try {
-    const url = `https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&per_page=10&orientation=landscape`;
-    const res = await fetch(url, {
-      headers: { 'Authorization': `Client-ID ${process.env.UNSPLASH_ACCESS_KEY}` }
-    });
+    const res = await fetch(
+      `https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&per_page=10&orientation=landscape`,
+      { headers: { 'Authorization': `Client-ID ${process.env.UNSPLASH_ACCESS_KEY}` } }
+    );
     if (!res.ok) return null;
     const data = await res.json();
     const results = data.results || [];
     if (!results.length) return null;
-    const pick = results[Math.floor(Math.random() * Math.min(results.length, 10))];
-    return pick.urls?.regular || null;
+    return results[Math.floor(Math.random() * Math.min(results.length, 5))].urls?.regular || null;
   } catch { return null; }
 }
 
-function getFallbackImage(beat) {
-  const seeds = { ai: 'ai-robot-42', tech: 'technology-99', world: 'world-city-7', science: 'science-space-23', business: 'finance-market-55' };
+function getFallback(beat) {
+  const seeds = { ai: 'ai-tech-42', tech: 'gadget-99', world: 'city-globe-7', science: 'space-lab-23', business: 'finance-55' };
   return `https://picsum.photos/seed/${seeds[beat] || 'news'}/800/450`;
 }
 
-function safeParseJSON(raw) {
-  let clean = raw.replace(/```json|```/g, '');
-  clean = clean.replace(/\n/g, ' ').replace(/\r/g, '').replace(/\t/g, ' ');
-  clean = clean.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
-  clean = clean.trim();
-  const start = clean.indexOf('{');
-  const end = clean.lastIndexOf('}');
-  if (start === -1 || end === -1) throw new Error('No JSON object found');
-  let jsonStr = clean.slice(start, end + 1);
-  try {
-    return JSON.parse(jsonStr);
-  } catch {
-    jsonStr = jsonStr.replace(/,\s*}/g, '}').replace(/,\s*]/g, ']');
-    try {
-      return JSON.parse(jsonStr);
-    } catch {
-      const extract = (key) => {
-        const match = jsonStr.match(new RegExp('"' + key + '"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"'));
-        return match ? match[1] : '';
-      };
-      return {
-        headline: extract('headline') || 'Breaking News',
-        deck: extract('deck') || '',
-        lede: extract('lede') || '',
-        body: extract('body') || '',
-        kicker: extract('kicker') || '',
-        readTime: '4 min read',
-        sourceCredit: extract('sourceCredit') || 'Meridian Analysis',
-        imageSearchQuery: extract('imageSearchQuery') || ''
-      };
-    }
+function parseJSON(raw) {
+  let s = raw.replace(/```json|```/g, '').replace(/\n|\r|\t/g, ' ').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '').trim();
+  const a = s.indexOf('{'), b = s.lastIndexOf('}');
+  if (a === -1 || b === -1) throw new Error('No JSON object found');
+  let j = s.slice(a, b + 1);
+  try { return JSON.parse(j); }
+  catch { 
+    j = j.replace(/,\s*([}\]])/g, '$1');
+    try { return JSON.parse(j); }
+    catch { throw new Error('No JSON object found'); }
   }
 }
 
-async function generateArticleForBeat(beat, usedHeadlines) {
+async function processOneBeat(beat, usedTitles) {
   const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+  const headline = await fetchBestHeadline(beat, usedTitles);
+  if (headline) usedTitles.add(headline.title);
 
-  // Fetch headlines and find one that actually matches this beat
-  const candidates = await fetchHeadlinesForBeat(beat.id);
-  let chosenHeadline = null;
-
-  for (const candidate of candidates) {
-    const classified = classifyBeat(candidate.title, candidate.description);
-    // Only use if it classifies to THIS beat AND hasn't been used
-    if (classified === beat.id && !usedHeadlines.has(candidate.title)) {
-      chosenHeadline = candidate;
-      usedHeadlines.add(candidate.title);
-      break;
-    }
-  }
-
-  const system = `You are the chief correspondent for Meridian covering the ${beat.label} beat exclusively. You ONLY write about ${beat.label} topics. Write with precision, authority, and depth. Never fabricate quotes or statistics. Return only valid JSON with no newlines inside string values.`;
-
-  const prompt = chosenHeadline
-    ? `Write a Meridian ${beat.label} article from this wire: "${chosenHeadline.title}" - ${chosenHeadline.description} (${chosenHeadline.source?.name || 'wire'}, ${today}). Return ONLY JSON, no newlines in values: {"headline":"max 12 words","deck":"max 25 words","lede":"2-3 sentences","body":"4 paragraphs 50+ words each separated by double space","kicker":"1 sentence","readTime":"4 min read","sourceCredit":"${chosenHeadline.source?.name || 'wire'}","imageSearchQuery":"3 visual keywords"}`
-    : `Write a Meridian ${beat.label} article about: ${beat.fallback} (${today}). Return ONLY JSON, no newlines in values: {"headline":"max 12 words","deck":"max 25 words","lede":"2-3 sentences","body":"4 paragraphs 50+ words each separated by double space","kicker":"1 sentence","readTime":"4 min read","sourceCredit":"Meridian Analysis","imageSearchQuery":"3 visual keywords"}`;
+  const src = headline?.source?.name || 'Meridian Analysis';
+  const prompt = headline
+    ? `You are a ${beat.label} journalist. Write a news article for Meridian about this: "${headline.title}" - ${headline.description} (${src}, ${today}). Return ONLY JSON: {"headline":"max 10 words","deck":"max 20 words","lede":"2 sentences","body":"3 paragraphs each 60 words separated by double space","kicker":"1 sentence","sourceCredit":"${src}","imageSearchQuery":"3 keywords"}`
+    : `You are a ${beat.label} journalist. Write a current ${beat.label} news article about ${beat.topic} (${today}). Return ONLY JSON: {"headline":"max 10 words","deck":"max 20 words","lede":"2 sentences","body":"3 paragraphs each 60 words separated by double space","kicker":"1 sentence","sourceCredit":"Meridian Analysis","imageSearchQuery":"3 keywords"}`;
 
   const res = await fetch(GROQ_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.GROQ_API_KEY}` },
-    body: JSON.stringify({ model: MODEL, temperature: 0.7, max_tokens: 2000, messages: [{ role: 'system', content: system }, { role: 'user', content: prompt }] })
+    body: JSON.stringify({
+      model: MODEL, temperature: 0.7, max_tokens: 800,
+      messages: [{ role: 'user', content: prompt }]
+    })
   });
 
   const data = await res.json();
-  const raw = data.choices?.[0]?.message?.content || '';
-  const article = safeParseJSON(raw);
-
-  const imageQuery = article.imageSearchQuery || beat.id;
-  article.imageUrl = await fetchUnsplashImage(imageQuery) || getFallbackImage(beat.id);
-
+  const article = parseJSON(data.choices?.[0]?.message?.content || '');
+  article.imageUrl = await fetchUnsplashImage(article.imageSearchQuery || beat.topic) || getFallback(beat.id);
   return article;
 }
 
 async function saveArticle(article, beat) {
-  const res = await fetch(`${process.env.SUPABASE_URL}/rest/v1/articles`, {
+  await fetch(`${process.env.SUPABASE_URL}/rest/v1/articles`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -162,45 +125,26 @@ async function saveArticle(article, beat) {
       'Prefer': 'return=minimal'
     },
     body: JSON.stringify({
-      headline: article.headline,
-      deck: article.deck,
-      lede: article.lede,
-      body: article.body || '',
-      kicker: article.kicker,
-      beat: beat.id,
-      beat_label: beat.label,
-      read_time: article.readTime || '4 min read',
+      headline: article.headline, deck: article.deck, lede: article.lede,
+      body: article.body || '', kicker: article.kicker,
+      beat: beat.id, beat_label: beat.label,
+      read_time: '4 min read',
       source_credit: article.sourceCredit || 'Meridian Analysis',
       image_url: article.imageUrl
     })
   });
-  if (!res.ok) throw new Error(await res.text());
 }
 
 export default async function handler(req, res) {
-  if (req.method !== 'GET' && req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-  if (!process.env.GROQ_API_KEY || !process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
-    return res.status(500).json({ error: 'Missing environment variables' });
+  if (req.method !== 'GET' && req.method !== 'POST') return res.status(405).end();
+  if (!process.env.GROQ_API_KEY || !process.env.SUPABASE_URL) {
+    return res.status(500).json({ error: 'Missing env vars' });
   }
 
-  // Track used headlines to prevent duplicates across beats
-  const usedHeadlines = new Set();
-  const results = [];
-
-  // Process sequentially to avoid duplicate content
-  for (const beat of BEATS) {
-    try {
-      const article = await generateArticleForBeat(beat, usedHeadlines);
-      await saveArticle(article, beat);
-      results.push({ status: 'fulfilled', value: article.headline });
-      console.log(`[${beat.label}] Published: ${article.headline}`);
-    } catch (err) {
-      results.push({ status: 'rejected', reason: err });
-      console.error(`[${beat.label}] Failed:`, err.message);
-    }
-  }
+  const usedTitles = new Set();
+  const results = await Promise.allSettled(
+    BEATS.map(beat => processOneBeat(beat, usedTitles).then(article => saveArticle(article, beat)))
+  );
 
   const published = results.filter(r => r.status === 'fulfilled').length;
   const failed = results.filter(r => r.status === 'rejected').map(r => r.reason?.message);
