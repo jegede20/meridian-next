@@ -195,13 +195,26 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Missing environment variables' });
   }
 
-  const results = await Promise.allSettled(
-    BEATS.map(async (beat) => {
+  // Process beats sequentially to avoid duplicate headlines across beats
+  const usedHeadlines = new Set();
+  const results = [];
+
+  for (const beat of BEATS) {
+    try {
       const article = await generateArticle(beat);
+      // Skip if same headline already published in this run
+      if (usedHeadlines.has(article.headline)) {
+        // Regenerate with fallback topic
+        const topic = beat.topics[Math.floor(Math.random() * beat.topics.length)];
+        article.headline = topic + ' — Latest Developments';
+      }
+      usedHeadlines.add(article.headline);
       await saveArticle(article, beat);
-      return article.headline;
-    })
-  );
+      results.push({ status: 'fulfilled', value: article.headline });
+    } catch (err) {
+      results.push({ status: 'rejected', reason: err });
+    }
+  }
 
   const published = results.filter(r => r.status === 'fulfilled').length;
   const failed = results.filter(r => r.status === 'rejected').map(r => r.reason?.message);

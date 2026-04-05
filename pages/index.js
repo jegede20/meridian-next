@@ -258,7 +258,7 @@ export default function Home() {
                   <img src={currentArticle.imageUrl} alt={currentArticle.headline} className="article-hero-img" />
                 )}
                 <div className="article-content">
-                  {[currentArticle.lede, ...currentArticle.body.split('\n').filter(p => p.trim()), currentArticle.kicker]
+                  {[currentArticle.lede, ...(currentArticle.body || '').split('\n').filter(p => p.trim()), currentArticle.kicker]
                     .filter(Boolean).map((p, i) => <p key={i}>{p}</p>)}
                 </div>
               </div>
