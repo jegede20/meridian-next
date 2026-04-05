@@ -108,7 +108,30 @@ function safeParseJSON(raw) {
   const start = clean.indexOf('{');
   const end = clean.lastIndexOf('}');
   if (start === -1 || end === -1) throw new Error('No JSON object found');
-  return JSON.parse(clean.slice(start, end + 1));
+  let jsonStr = clean.slice(start, end + 1);
+  try {
+    return JSON.parse(jsonStr);
+  } catch {
+    jsonStr = jsonStr.replace(/,\s*}/g, '}').replace(/,\s*]/g, ']');
+    try {
+      return JSON.parse(jsonStr);
+    } catch {
+      const extract = (key) => {
+        const match = jsonStr.match(new RegExp('"' + key + '"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"'));
+        return match ? match[1] : '';
+      };
+      return {
+        headline: extract('headline') || 'Breaking News',
+        deck: extract('deck') || '',
+        lede: extract('lede') || '',
+        body: extract('body') || '',
+        kicker: extract('kicker') || '',
+        readTime: '4 min read',
+        sourceCredit: extract('sourceCredit') || 'Meridian Analysis',
+        imageSearchQuery: extract('imageSearchQuery') || ''
+      };
+    }
+  }
 }
 
 async function generateArticle(beat) {
