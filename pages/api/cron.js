@@ -77,15 +77,47 @@ function getFallback(beatId) {
 }
 
 function safeParseJSON(raw) {
-  let s = raw.replace(/```json|```/g, '').replace(/\n|\r|\t/g, ' ').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '').trim();
+  let s = raw
+    .replace(/<think>[\s\S]*?<\/think>/g, '')
+    .replace(/```json|```/g, '')
+    .replace(/\n|\r|\t/g, ' ')
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '')
+    .trim();
+
   const a = s.indexOf('{'), b = s.lastIndexOf('}');
   if (a === -1 || b === -1) throw new Error('No JSON object found');
   let j = s.slice(a, b + 1);
-  try { return JSON.parse(j); }
-  catch {
-    j = j.replace(/,\s*([}\]])/g, '$1');
-    return JSON.parse(j);
-  }
+
+  // Try direct parse first
+  try { return JSON.parse(j); } catch {}
+
+  // Fix trailing commas
+  j = j.replace(/,\s*([}\]])/g, '$1');
+  try { return JSON.parse(j); } catch {}
+
+  // Fix single quotes used instead of double quotes
+  j = j.replace(/'/g, '"');
+  try { return JSON.parse(j); } catch {}
+
+  // Fix unquoted property names
+  j = j.replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":');
+  try { return JSON.parse(j); } catch {}
+
+  // Last resort — extract fields manually
+  const extract = (key) => {
+    const m = s.match(new RegExp(`["']?${key}["']?\\s*:\\s*["']([^"']*?)["']`));
+    return m ? m[1] : '';
+  };
+  return {
+    headline: extract('headline') || 'Breaking News',
+    deck: extract('deck') || '',
+    lede: extract('lede') || '',
+    body: extract('body') || '',
+    kicker: extract('kicker') || '',
+    sourceCredit: extract('sourceCredit') || 'Meridian Analysis',
+    imageSearchQuery: extract('imageSearchQuery') || ''
+  };
+}
 }
 
 async function generateAndSave(beat) {
