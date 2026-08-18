@@ -101,15 +101,18 @@ async function generateAndSave(beat) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.GROQ_API_KEY}` },
     body: JSON.stringify({
-      model: MODEL, temperature: 0.7, max_tokens: 1500,
-      messages: [{ role: 'user', content: prompt }]
-    })
+  model: MODEL, temperature: 0.7, max_tokens: 1500,
+  reasoning_effort: "none",
+  messages: [{ role: 'user', content: prompt }]
+})
   });
 
   if (!res.ok) throw new Error(`Groq error ${res.status}`);
   const data = await res.json();
-  const raw = data.choices?.[0]?.message?.content || '';
-  if (!raw) throw new Error('Empty Groq response');
+  let raw = data.choices?.[0]?.message?.content || '';
+if (!raw) throw new Error('Empty Groq response');
+// Strip thinking mode tags from qwen models
+raw = raw.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
 
   const article = safeParseJSON(raw);
   const imageUrl = await fetchUnsplashImage(article.imageSearchQuery || beat.topic) || getFallback(beat.id);
@@ -146,7 +149,7 @@ for (const beat of BEATS) {
   const result = await Promise.allSettled([generateAndSave(beat)]);
   results.push(result[0]);
   // Wait 3 seconds between each beat to avoid rate limiting
-  await new Promise(r => setTimeout(r, 3000));
+  await new Promise(r => setTimeout(r, 8000));
 }
   const published = results.filter(r => r.status === 'fulfilled').length;
   const failed = results.filter(r => r.status === 'rejected').map(r => r.reason?.message);
