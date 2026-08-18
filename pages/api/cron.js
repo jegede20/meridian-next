@@ -141,7 +141,13 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Missing env vars' });
   }
 
-  const results = await Promise.allSettled(BEATS.map(beat => generateAndSave(beat)));
+  const results = [];
+for (const beat of BEATS) {
+  const result = await Promise.allSettled([generateAndSave(beat)]);
+  results.push(result[0]);
+  // Wait 3 seconds between each beat to avoid rate limiting
+  await new Promise(r => setTimeout(r, 3000));
+}
   const published = results.filter(r => r.status === 'fulfilled').length;
   const failed = results.filter(r => r.status === 'rejected').map(r => r.reason?.message);
   return res.status(200).json({ success: true, published, failed, timestamp: new Date().toISOString() });
