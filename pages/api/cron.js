@@ -1,5 +1,5 @@
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const MODEL = 'qwen/qwen3-32b';
+const MODEL = 'qwen/qwen3.6-27b';
 
 const BEATS = [
   { id: 'ai',       label: 'AI',       topic: 'artificial intelligence OpenAI Anthropic AI safety' },

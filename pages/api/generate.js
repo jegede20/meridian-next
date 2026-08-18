@@ -1,5 +1,5 @@
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const MODEL = 'qwen/qwen3-32b';
+const MODEL = 'qwen/qwen3.6-27b';
 
 async function groq(system, user) {
   const res = await fetch(GROQ_URL, {
